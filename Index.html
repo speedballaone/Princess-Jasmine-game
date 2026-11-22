@@ -1,0 +1,1575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Princess Jasmine 3D — Tablet Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+    <style>
+        * {
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            touch-action: manipulation;
+        }
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #0f172a;
+            font-family: 'Fredoka One', 'Inter', sans-serif;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        .game-title {
+            text-shadow: 0 4px 12px rgba(0, 0, 0, 0.55), 0 0 24px rgba(244, 63, 94, 0.55);
+        }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.88);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
+        }
+        .touch-btn {
+            background: rgba(255, 255, 255, 0.22);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 2px solid rgba(255, 255, 255, 0.42);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
+            transition: transform 0.08s ease, background-color 0.08s ease, border-color 0.08s ease;
+        }
+        .touch-btn:active, .touch-btn.active {
+            transform: scale(0.92);
+            background: rgba(244, 63, 94, 0.65);
+            border-color: #ffffff;
+        }
+        @media (orientation: portrait) and (max-width: 768px) {
+            #portrait-warning {
+                display: flex !important;
+            }
+        }
+    </style>
+</head>
+<body class="select-none overflow-hidden">
+
+    <!-- 3D WebGL Canvas Container -->
+    <div id="canvas-container" class="w-full h-full absolute inset-0"></div>
+
+    <!-- HUD & Tablet Touch Controls Layer -->
+    <div id="ui-layer" class="absolute inset-0 pointer-events-none z-10 flex flex-col justify-between p-3 sm:p-5 md:p-6">
+        <!-- Top HUD Bar -->
+        <div id="hud-bar" class="flex justify-between items-center w-full hidden pointer-events-auto gap-2">
+            <!-- Collectibles & Checkpoint Status -->
+            <div class="flex items-center gap-3 sm:gap-4 bg-slate-900/85 px-3.5 sm:px-4 py-2 rounded-full border border-white/20 backdrop-blur-md shadow-lg">
+                <div class="flex items-center gap-1.5">
+                    <span class="text-xl sm:text-2xl">⭐</span>
+                    <span id="star-count" class="text-amber-400 text-lg sm:text-2xl font-bold">0 / 0</span>
+                </div>
+                <div class="h-6 w-px bg-white/20"></div>
+                <div class="flex items-center gap-1.5">
+                    <span class="text-xl sm:text-2xl">💎</span>
+                    <span id="gem-count" class="text-cyan-300 text-lg sm:text-2xl font-bold">0</span>
+                </div>
+                <div id="checkpoint-badge" class="hidden sm:flex items-center gap-1 bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-xs font-sans font-bold px-2.5 py-1 rounded-full">
+                    🚩 Checkpoint
+                </div>
+            </div>
+
+            <!-- Current Kingdom Badge -->
+            <div id="hud-level-title" class="hidden md:block text-white text-base lg:text-lg font-bold tracking-wide bg-rose-600/85 px-5 py-2 rounded-full border border-rose-300/40 shadow-lg backdrop-blur-md">
+                Royal Gardens
+            </div>
+
+            <!-- Sound & Pause Buttons -->
+            <div class="flex items-center gap-2 sm:gap-3">
+                <button id="sound-btn" aria-label="Toggle Sound" class="w-12 h-12 rounded-full bg-slate-800/85 border border-white/20 text-white text-xl flex items-center justify-center hover:bg-slate-700 active:scale-95 transition shadow-lg backdrop-blur-md cursor-pointer">
+                    🔊
+                </button>
+                <button id="pause-btn" aria-label="Pause Game" class="w-12 h-12 rounded-full bg-slate-800/85 border border-white/20 text-white text-xl flex items-center justify-center hover:bg-slate-700 active:scale-95 transition shadow-lg backdrop-blur-md cursor-pointer">
+                    ⏸️
+                </button>
+            </div>
+        </div>
+
+        <!-- Bottom Touch Controls (Tablet & Touch Friendly) -->
+        <div id="touch-controls" class="w-full justify-between items-end pb-1 sm:pb-2 px-1 sm:px-2 hidden pointer-events-auto flex">
+            <!-- Left / Right Movement -->
+            <div class="flex gap-3 sm:gap-4">
+                <button id="btn-left" aria-label="Move Left" class="touch-btn w-20 h-20 sm:w-24 sm:h-24 rounded-2xl flex items-center justify-center text-3xl sm:text-4xl text-white font-extrabold select-none cursor-pointer">
+                    ◀
+                </button>
+                <button id="btn-right" aria-label="Move Right" class="touch-btn w-20 h-20 sm:w-24 sm:h-24 rounded-2xl flex items-center justify-center text-3xl sm:text-4xl text-white font-extrabold select-none cursor-pointer">
+                    ▶
+                </button>
+            </div>
+
+            <!-- Gymnastics Flip & Jump -->
+            <div class="flex gap-3 sm:gap-4">
+                <button id="btn-flip" aria-label="Gymnastics Flip" class="touch-btn w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center text-2xl sm:text-3xl text-amber-300 font-extrabold select-none cursor-pointer">
+                    🤸🏻‍♀️
+                </button>
+                <button id="btn-jump" aria-label="Jump" class="touch-btn w-20 h-20 sm:w-24 sm:h-24 rounded-2xl flex items-center justify-center text-3xl sm:text-4xl text-white font-extrabold bg-rose-500/45 border-rose-300 select-none cursor-pointer">
+                    🦘
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Menu Overlay -->
+    <div id="menu-overlay" class="absolute inset-0 z-20 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4">
+        <div class="glass-panel w-full max-w-xl rounded-3xl p-5 sm:p-7 flex flex-col items-center text-center text-white space-y-5 border border-rose-500/30 max-h-[95vh] overflow-y-auto">
+            <div class="space-y-1">
+                <span class="bg-rose-500 text-white text-xs uppercase tracking-widest px-3 py-1 rounded-full font-bold shadow-md">
+                    3D Tablet Edition
+                </span>
+                <h1 class="text-3xl sm:text-5xl font-extrabold tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-rose-400 via-pink-300 to-amber-300 game-title pt-1">
+                    PRINCESS JASMINE
+                </h1>
+                <p class="text-slate-300 text-xs sm:text-sm font-sans">
+                    Run • Jump • Flip • Dream — Be a Princess!
+                </p>
+            </div>
+
+            <button id="btn-play-start" class="w-full py-3.5 sm:py-4 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white text-lg sm:text-xl font-extrabold rounded-2xl shadow-lg shadow-rose-500/35 active:scale-98 transition cursor-pointer">
+                ▶ PLAY ADVENTURE
+            </button>
+
+            <!-- Level Selection Grid -->
+            <div class="w-full">
+                <div class="flex justify-between items-center mb-2 px-1">
+                    <span class="text-xs uppercase tracking-wider text-slate-400 font-sans font-semibold">Select Kingdom</span>
+                    <span id="save-summary" class="text-xs text-amber-300 font-sans font-semibold">Best Stars: 0</span>
+                </div>
+                <div id="level-grid" class="grid grid-cols-2 gap-2.5 text-sm">
+                    <button class="level-select-btn px-3 py-3 rounded-xl bg-slate-800/85 border border-slate-700 hover:border-rose-400 active:scale-95 transition flex flex-col items-center cursor-pointer" data-level="1">
+                        <span class="text-base sm:text-lg">🌸 Level 1</span>
+                        <span class="text-xs text-rose-300 font-sans">Royal Gardens</span>
+                        <span class="level-best text-[11px] text-amber-300 font-sans mt-0.5">★ 0</span>
+                    </button>
+                    <button class="level-select-btn px-3 py-3 rounded-xl bg-slate-800/85 border border-slate-700 hover:border-cyan-400 active:scale-95 transition flex flex-col items-center cursor-pointer" data-level="2">
+                        <span class="text-base sm:text-lg">❄️ Level 2</span>
+                        <span class="text-xs text-cyan-300 font-sans">Ice Kingdom</span>
+                        <span class="level-best text-[11px] text-amber-300 font-sans mt-0.5">★ 0</span>
+                    </button>
+                    <button class="level-select-btn px-3 py-3 rounded-xl bg-slate-800/85 border border-slate-700 hover:border-amber-500 active:scale-95 transition flex flex-col items-center cursor-pointer" data-level="3">
+                        <span class="text-base sm:text-lg">🔥 Level 3</span>
+                        <span class="text-xs text-amber-400 font-sans">Fire Kingdom</span>
+                        <span class="level-best text-[11px] text-amber-300 font-sans mt-0.5">★ 0</span>
+                    </button>
+                    <button class="level-select-btn px-3 py-3 rounded-xl bg-slate-800/85 border border-slate-700 hover:border-purple-400 active:scale-95 transition flex flex-col items-center cursor-pointer" data-level="4">
+                        <span class="text-base sm:text-lg">✨ Level 4</span>
+                        <span class="text-xs text-purple-300 font-sans">Enchanted Castle</span>
+                        <span class="level-best text-[11px] text-amber-300 font-sans mt-0.5">★ 0</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Settings Row -->
+            <div class="w-full bg-slate-900/70 rounded-2xl p-3 border border-white/10 flex flex-wrap items-center justify-between gap-2 text-xs font-sans">
+                <div class="flex items-center gap-2">
+                    <span class="text-slate-300 font-semibold">Graphics:</span>
+                    <button id="btn-quality" class="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-600 text-amber-300 font-bold hover:border-amber-400 transition cursor-pointer">
+                        High Quality
+                    </button>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-slate-300 font-semibold">Audio:</span>
+                    <button id="btn-menu-sound" class="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-600 text-emerald-300 font-bold hover:border-emerald-400 transition cursor-pointer">
+                        🔊 Sound On
+                    </button>
+                </div>
+            </div>
+
+            <div class="text-xs text-slate-400 font-sans border-t border-slate-800 pt-2.5 w-full">
+                <span class="font-bold text-slate-300">Tablet:</span> Touch buttons • <span class="font-bold text-slate-300">Keyboard:</span> A/D or Arrows to Move, Space to Jump/Double Jump, Shift to Flip, Esc to Pause
+            </div>
+        </div>
+    </div>
+
+    <!-- Pause Overlay -->
+    <div id="pause-overlay" class="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 hidden">
+        <div class="glass-panel w-full max-w-md rounded-3xl p-6 text-center text-white space-y-4">
+            <h2 class="text-3xl font-extrabold text-amber-300">GAME PAUSED</h2>
+            <p class="text-xs text-slate-400 font-sans">Take a royal breather! Your progress is saved locally.</p>
+            <div class="space-y-3 pt-1">
+                <button id="btn-resume" class="w-full py-3.5 bg-rose-500 hover:bg-rose-600 font-extrabold rounded-xl text-lg shadow-md active:scale-95 transition cursor-pointer">
+                    RESUME PLAYING
+                </button>
+                <button id="btn-restart" class="w-full py-3.5 bg-slate-800 hover:bg-slate-700 font-extrabold rounded-xl text-lg border border-slate-600 active:scale-95 transition cursor-pointer">
+                    RESTART LEVEL
+                </button>
+                <button id="btn-main-menu" class="w-full py-3.5 bg-slate-800 hover:bg-slate-700 font-extrabold rounded-xl text-lg border border-slate-600 active:scale-95 transition cursor-pointer">
+                    MAIN MENU
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Level Complete Overlay -->
+    <div id="complete-overlay" class="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 hidden">
+        <div class="glass-panel w-full max-w-md rounded-3xl p-6 md:p-7 text-center text-white space-y-5 border border-emerald-500/40">
+            <div class="space-y-1.5">
+                <span class="text-5xl inline-block animate-bounce">👑</span>
+                <h2 class="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-amber-300 to-yellow-500">
+                    KINGDOM CLEARED!
+                </h2>
+                <p id="complete-subtitle" class="text-emerald-300 text-sm font-sans">Princess Jasmine shines brightly!</p>
+            </div>
+
+            <div class="bg-slate-900/90 rounded-2xl p-4 border border-white/10 flex justify-around">
+                <div class="flex flex-col items-center">
+                    <span class="text-xs text-slate-400 font-sans">Stars Earned</span>
+                    <span id="complete-stars" class="text-2xl font-bold text-amber-400">0 / 0</span>
+                </div>
+                <div class="w-px bg-white/10"></div>
+                <div class="flex flex-col items-center">
+                    <span class="text-xs text-slate-400 font-sans">Gems Collected</span>
+                    <span id="complete-gems" class="text-2xl font-bold text-cyan-400">0</span>
+                </div>
+            </div>
+
+            <div class="space-y-3">
+                <button id="btn-next-level" class="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-extrabold rounded-2xl text-xl shadow-lg shadow-emerald-500/30 active:scale-95 transition cursor-pointer">
+                    NEXT KINGDOM ➔
+                </button>
+                <button id="btn-replay" class="w-full py-3 bg-slate-800 hover:bg-slate-700 font-extrabold rounded-xl border border-slate-600 text-sm active:scale-95 transition cursor-pointer">
+                    REPLAY LEVEL
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Portrait Orientation Prompt -->
+    <div id="portrait-warning" class="fixed inset-0 z-50 bg-slate-950/95 flex-col items-center justify-center p-6 text-center text-white hidden">
+        <div class="text-6xl mb-4 animate-spin">🔄</div>
+        <h3 class="text-2xl font-bold text-rose-400 mb-2">Rotate Your Tablet</h3>
+        <p class="text-slate-300 text-sm max-w-xs font-sans">
+            Princess Jasmine 3D is designed for Landscape mode so you have plenty of room to run, jump, and flip!
+        </p>
+    </div>
+
+    <script>
+        /* =========================================================================
+           1. SAVE & SETTINGS SYSTEM (localStorage)
+           ========================================================================= */
+        const SAVE_KEY = 'princess_jasmine_3d_save_v1';
+
+        function loadSaveData() {
+            const fallback = {
+                unlockedLevel: 1,
+                bestStars: { 1: 0, 2: 0, 3: 0, 4: 0 },
+                bestGems: { 1: 0, 2: 0, 3: 0, 4: 0 },
+                settings: {
+                    muted: false,
+                    highQuality: true
+                }
+            };
+            try {
+                const raw = window.localStorage.getItem(SAVE_KEY);
+                if (!raw) return fallback;
+                const parsed = JSON.parse(raw);
+                return {
+                    unlockedLevel: Math.min(4, Math.max(1, parsed.unlockedLevel || 1)),
+                    bestStars: Object.assign({}, fallback.bestStars, parsed.bestStars || {}),
+                    bestGems: Object.assign({}, fallback.bestGems, parsed.bestGems || {}),
+                    settings: Object.assign({}, fallback.settings, parsed.settings || {})
+                };
+            } catch (err) {
+                return fallback;
+            }
+        }
+
+        function persistSaveData(data) {
+            try {
+                window.localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+            } catch (err) {
+                // Ignore storage quota / privacy mode errors gracefully
+            }
+        }
+
+        /* =========================================================================
+           2. SYNTHESIZED SOUND SYSTEM (Web Audio API)
+           ========================================================================= */
+        class SoundSystem {
+            constructor(initialMuted = false) {
+                this.ctx = null;
+                this.muted = Boolean(initialMuted);
+            }
+
+            init() {
+                try {
+                    if (!this.ctx) {
+                        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                        if (AudioCtx) {
+                            this.ctx = new AudioCtx();
+                        }
+                    }
+                    if (this.ctx && this.ctx.state === 'suspended') {
+                        this.ctx.resume();
+                    }
+                } catch (err) {
+                    // Continue silently if audio context cannot start
+                }
+            }
+
+            setMuted(muteState) {
+                this.muted = Boolean(muteState);
+                return this.muted;
+            }
+
+            toggleMute() {
+                this.muted = !this.muted;
+                return this.muted;
+            }
+
+            playJump() {
+                if (this.muted || !this.ctx) return;
+                try {
+                    const now = this.ctx.currentTime;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(240, now);
+                    osc.frequency.exponentialRampToValueAtTime(620, now + 0.16);
+                    gain.gain.setValueAtTime(0.24, now);
+                    gain.gain.exponentialRampToValueAtTime(0.008, now + 0.16);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.17);
+                } catch (e) {}
+            }
+
+            playDoubleJump() {
+                if (this.muted || !this.ctx) return;
+                try {
+                    const now = this.ctx.currentTime;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(420, now);
+                    osc.frequency.exponentialRampToValueAtTime(920, now + 0.22);
+                    gain.gain.setValueAtTime(0.28, now);
+                    gain.gain.exponentialRampToValueAtTime(0.008, now + 0.22);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.23);
+                } catch (e) {}
+            }
+
+            playLand() {
+                if (this.muted || !this.ctx) return;
+                try {
+                    const now = this.ctx.currentTime;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(140, now);
+                    osc.frequency.exponentialRampToValueAtTime(65, now + 0.08);
+                    gain.gain.setValueAtTime(0.14, now);
+                    gain.gain.exponentialRampToValueAtTime(0.005, now + 0.08);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.09);
+                } catch (e) {}
+            }
+
+            playCollect() {
+                if (this.muted || !this.ctx) return;
+                try {
+                    const now = this.ctx.currentTime;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(659.25, now);
+                    osc.frequency.setValueAtTime(987.77, now + 0.07);
+                    gain.gain.setValueAtTime(0.22, now);
+                    gain.gain.exponentialRampToValueAtTime(0.008, now + 0.22);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.23);
+                } catch (e) {}
+            }
+
+            playCheckpoint() {
+                if (this.muted || !this.ctx) return;
+                try {
+                    const notes = [587.33, 783.99, 1046.5];
+                    notes.forEach((freq, idx) => {
+                        const now = this.ctx.currentTime + idx * 0.08;
+                        const osc = this.ctx.createOscillator();
+                        const gain = this.ctx.createGain();
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(freq, now);
+                        gain.gain.setValueAtTime(0.2, now);
+                        gain.gain.exponentialRampToValueAtTime(0.008, now + 0.16);
+                        osc.connect(gain);
+                        gain.connect(this.ctx.destination);
+                        osc.start(now);
+                        osc.stop(now + 0.17);
+                    });
+                } catch (e) {}
+            }
+
+            playHurt() {
+                if (this.muted || !this.ctx) return;
+                try {
+                    const now = this.ctx.currentTime;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(230, now);
+                    osc.frequency.linearRampToValueAtTime(85, now + 0.25);
+                    gain.gain.setValueAtTime(0.22, now);
+                    gain.gain.exponentialRampToValueAtTime(0.008, now + 0.25);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.26);
+                } catch (e) {}
+            }
+
+            playWin() {
+                if (this.muted || !this.ctx) return;
+                try {
+                    const notes = [523.25, 659.25, 783.99, 1046.5];
+                    notes.forEach((freq, idx) => {
+                        const now = this.ctx.currentTime + idx * 0.11;
+                        const osc = this.ctx.createOscillator();
+                        const gain = this.ctx.createGain();
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(freq, now);
+                        gain.gain.setValueAtTime(0.26, now);
+                        gain.gain.exponentialRampToValueAtTime(0.008, now + 0.24);
+                        osc.connect(gain);
+                        gain.connect(this.ctx.destination);
+                        osc.start(now);
+                        osc.stop(now + 0.25);
+                    });
+                } catch (e) {}
+            }
+        }
+
+        /* =========================================================================
+           3. PROCEDURAL 3D PRINCESS JASMINE MODEL
+           ========================================================================= */
+        function createJasmineCharacter() {
+            const root = new THREE.Group();
+            const bodyPivot = new THREE.Group();
+            root.add(bodyPivot);
+
+            const skinMat = new THREE.MeshLambertMaterial({ color: 0x8C5638 });
+            const hairMat = new THREE.MeshLambertMaterial({ color: 0x1A1110 });
+            const redMat = new THREE.MeshLambertMaterial({ color: 0xE11D48 });
+            const whiteMat = new THREE.MeshLambertMaterial({ color: 0xF8FAFC });
+            const blackMat = new THREE.MeshLambertMaterial({ color: 0x0F172A });
+            const goldMat = new THREE.MeshLambertMaterial({ color: 0xF59E0B });
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0x241207 });
+
+            // Head & Twin Puff Ponytails
+            const headGroup = new THREE.Group();
+            headGroup.position.set(0, 1.36, 0);
+
+            const headGeo = new THREE.SphereGeometry(0.32, 16, 16);
+            headGeo.scale(1, 1.08, 1);
+            const headMesh = new THREE.Mesh(headGeo, skinMat);
+            headGroup.add(headMesh);
+
+            const hairCap = new THREE.Mesh(new THREE.SphereGeometry(0.34, 16, 16), hairMat);
+            hairCap.position.set(0, 0.05, -0.04);
+            headGroup.add(hairCap);
+
+            const puffGeo = new THREE.SphereGeometry(0.18, 12, 12);
+            const puffLeft = new THREE.Mesh(puffGeo, hairMat);
+            puffLeft.position.set(-0.34, 0.22, -0.05);
+            const puffRight = new THREE.Mesh(puffGeo, hairMat);
+            puffRight.position.set(0.34, 0.22, -0.05);
+
+            const tieGeo = new THREE.TorusGeometry(0.11, 0.03, 8, 12);
+            const tieLeft = new THREE.Mesh(tieGeo, redMat);
+            tieLeft.position.set(-0.27, 0.18, -0.05);
+            tieLeft.rotation.y = Math.PI / 2;
+            const tieRight = new THREE.Mesh(tieGeo, redMat);
+            tieRight.position.set(0.27, 0.18, -0.05);
+            tieRight.rotation.y = Math.PI / 2;
+            headGroup.add(puffLeft, puffRight, tieLeft, tieRight);
+
+            // Princess Crown
+            const crownMesh = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.16, 5), goldMat);
+            crownMesh.position.set(0, 0.42, 0.02);
+            headGroup.add(crownMesh);
+
+            // Eyes & Smile
+            const eyeGeo = new THREE.SphereGeometry(0.058, 10, 10);
+            eyeGeo.scale(1, 1.2, 0.4);
+            const eyeLeft = new THREE.Mesh(eyeGeo, eyeMat);
+            eyeLeft.position.set(-0.11, 0.03, 0.29);
+            const eyeRight = new THREE.Mesh(eyeGeo, eyeMat);
+            eyeRight.position.set(0.11, 0.03, 0.29);
+
+            const smileMesh = new THREE.Mesh(
+                new THREE.TorusGeometry(0.07, 0.016, 8, 14, Math.PI),
+                whiteMat
+            );
+            smileMesh.position.set(0, -0.08, 0.3);
+            smileMesh.rotation.x = Math.PI;
+            headGroup.add(eyeLeft, eyeRight, smileMesh);
+            bodyPivot.add(headGroup);
+
+            // Cheer Top & Skirt
+            const torsoGroup = new THREE.Group();
+            torsoGroup.position.set(0, 0.86, 0);
+            const topMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.17, 0.34, 14), redMat);
+            const whiteStripe = new THREE.Mesh(new THREE.CylinderGeometry(0.205, 0.205, 0.06, 14), whiteMat);
+            whiteStripe.position.y = 0.07;
+            const blackStripe = new THREE.Mesh(new THREE.CylinderGeometry(0.205, 0.205, 0.05, 14), blackMat);
+            blackStripe.position.y = -0.08;
+            torsoGroup.add(topMesh, whiteStripe, blackStripe);
+            bodyPivot.add(torsoGroup);
+
+            const skirtGroup = new THREE.Group();
+            skirtGroup.position.set(0, 0.65, 0);
+            const skirtMesh = new THREE.Mesh(new THREE.ConeGeometry(0.37, 0.28, 16, 1, true), redMat);
+            skirtMesh.material.side = THREE.DoubleSide;
+            const skirtHem = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.024, 8, 20), whiteMat);
+            skirtHem.rotation.x = Math.PI / 2;
+            skirtHem.position.y = -0.13;
+            skirtGroup.add(skirtMesh, skirtHem);
+            bodyPivot.add(skirtGroup);
+
+            // Arms
+            const leftArmPivot = new THREE.Group();
+            leftArmPivot.position.set(-0.24, 0.98, 0);
+            const armGeo = new THREE.CylinderGeometry(0.05, 0.04, 0.38, 10);
+            armGeo.translate(0, -0.19, 0);
+            leftArmPivot.add(new THREE.Mesh(armGeo, skinMat));
+            bodyPivot.add(leftArmPivot);
+
+            const rightArmPivot = new THREE.Group();
+            rightArmPivot.position.set(0.24, 0.98, 0);
+            rightArmPivot.add(new THREE.Mesh(armGeo, skinMat));
+            bodyPivot.add(rightArmPivot);
+
+            // Legs & Red/White Sneakers
+            const legGeo = new THREE.CylinderGeometry(0.06, 0.05, 0.42, 10);
+            legGeo.translate(0, -0.21, 0);
+            const shoeGeo = new THREE.BoxGeometry(0.13, 0.11, 0.23);
+            shoeGeo.translate(0, -0.41, 0.04);
+            const soleGeo = new THREE.BoxGeometry(0.14, 0.035, 0.24);
+            soleGeo.translate(0, -0.46, 0.04);
+
+            const leftLegPivot = new THREE.Group();
+            leftLegPivot.position.set(-0.12, 0.5, 0);
+            leftLegPivot.add(new THREE.Mesh(legGeo, skinMat));
+            leftLegPivot.add(new THREE.Mesh(shoeGeo, redMat));
+            leftLegPivot.add(new THREE.Mesh(soleGeo, whiteMat));
+            bodyPivot.add(leftLegPivot);
+
+            const rightLegPivot = new THREE.Group();
+            rightLegPivot.position.set(0.12, 0.5, 0);
+            rightLegPivot.add(new THREE.Mesh(legGeo, skinMat));
+            rightLegPivot.add(new THREE.Mesh(shoeGeo, redMat));
+            rightLegPivot.add(new THREE.Mesh(soleGeo, whiteMat));
+            bodyPivot.add(rightLegPivot);
+
+            // Ground Shadow Disc (stays near ground)
+            const shadowMesh = new THREE.Mesh(
+                new THREE.CircleGeometry(0.42, 18).rotateX(-Math.PI / 2),
+                new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.28 })
+            );
+            shadowMesh.position.y = 0.02;
+            root.add(shadowMesh);
+
+            root.userData = {
+                bodyPivot,
+                head: headGroup,
+                leftArm: leftArmPivot,
+                rightArm: rightArmPivot,
+                leftLeg: leftLegPivot,
+                rightLeg: rightLegPivot,
+                skirt: skirtGroup,
+                puffLeft,
+                puffRight,
+                shadow: shadowMesh
+            };
+
+            return root;
+        }
+
+        /* =========================================================================
+           4. KINGDOM LEVEL DEFINITIONS
+           ========================================================================= */
+        const LEVELS_DATA = [
+            {
+                id: 1,
+                name: "Royal Gardens",
+                bgColor: 0x38bdf8,
+                fogColor: 0xbae6fd,
+                groundColor: 0x22c55e,
+                platformColor: 0xf1f5f9,
+                accentColor: 0xf472b6,
+                hazardType: null,
+                length: 115
+            },
+            {
+                id: 2,
+                name: "Ice Kingdom",
+                bgColor: 0x1e3a8a,
+                fogColor: 0x7dd3fc,
+                groundColor: 0x93c5fd,
+                platformColor: 0x60a5fa,
+                accentColor: 0xe0f2fe,
+                hazardType: "spikes",
+                length: 135
+            },
+            {
+                id: 3,
+                name: "Fire Kingdom",
+                bgColor: 0x450a0a,
+                fogColor: 0x991b1b,
+                groundColor: 0x1f2937,
+                platformColor: 0x4b5563,
+                accentColor: 0xf97316,
+                hazardType: "lava",
+                length: 155
+            },
+            {
+                id: 4,
+                name: "Enchanted Castle",
+                bgColor: 0x31105f,
+                fogColor: 0x7e22ce,
+                groundColor: 0x581c87,
+                platformColor: 0xf59e0b,
+                accentColor: 0xfde047,
+                hazardType: "lava",
+                length: 175
+            }
+        ];
+
+        /* =========================================================================
+           5. MAIN GAME ENGINE & COLLISION SYSTEM
+           ========================================================================= */
+        class GameEngine {
+            constructor() {
+                this.container = document.getElementById('canvas-container');
+                this.saveData = loadSaveData();
+                this.sound = new SoundSystem(this.saveData.settings.muted);
+
+                this.currentLevelIndex = 0;
+                this.isPlaying = false;
+                this.isPaused = false;
+                this.scoreGems = 0;
+                this.starsCollected = 0;
+                this.totalLevelStars = 0;
+
+                // Player Physics State (playerPos.y represents Jasmine's feet baseline)
+                this.playerPos = new THREE.Vector3(0, 0, 0);
+                this.playerVel = new THREE.Vector3(0, 0, 0);
+                this.spawnPos = new THREE.Vector3(0, 0, 0);
+                this.isGrounded = false;
+                this.groundedPlatform = null;
+                this.jumpCount = 0;
+                this.maxJumps = 2;
+
+                // Procedural Animation State
+                this.animState = 'idle';
+                this.animTime = 0;
+                this.flipRotation = 0;
+                this.squashY = 1;
+                this.squashXZ = 1;
+
+                // Input State
+                this.keys = { left: false, right: false, jump: false };
+
+                // World Entities
+                this.platforms = [];
+                this.collectibles = [];
+                this.hazards = [];
+                this.checkpoints = [];
+                this.decorMeshes = [];
+                this.particles = [];
+                this.finishPortal = null;
+                this.deathY = -9;
+
+                // Three.js Objects
+                this.scene = null;
+                this.camera = null;
+                this.renderer = null;
+                this.player = null;
+                this.clock = new THREE.Clock();
+
+                this.initThree();
+                this.syncSettingsUI();
+                this.refreshLevelMenuUI();
+                this.bindEvents();
+
+                this.animate = this.animate.bind(this);
+                requestAnimationFrame(this.animate);
+            }
+
+            initThree() {
+                this.scene = new THREE.Scene();
+                this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+                this.camera.position.set(2, 4, 11.5);
+
+                this.renderer = new THREE.WebGLRenderer({
+                    antialias: this.saveData.settings.highQuality,
+                    powerPreference: 'default'
+                });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.applyQualitySetting();
+                this.container.appendChild(this.renderer.domElement);
+
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+                this.scene.add(ambientLight);
+
+                const dirLight = new THREE.DirectionalLight(0xfffbeb, 0.85);
+                dirLight.position.set(12, 24, 14);
+                this.scene.add(dirLight);
+
+                this.player = createJasmineCharacter();
+                this.scene.add(this.player);
+            }
+
+            applyQualitySetting() {
+                const maxDpr = this.saveData.settings.highQuality ? 2 : 1.25;
+                this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxDpr));
+            }
+
+            syncSettingsUI() {
+                const qBtn = document.getElementById('btn-quality');
+                if (qBtn) {
+                    qBtn.textContent = this.saveData.settings.highQuality ? 'High Quality' : 'Tablet Saver';
+                }
+                const menuSoundBtn = document.getElementById('btn-menu-sound');
+                if (menuSoundBtn) {
+                    menuSoundBtn.textContent = this.sound.muted ? '🔇 Muted' : '🔊 Sound On';
+                }
+                const hudSoundBtn = document.getElementById('sound-btn');
+                if (hudSoundBtn) {
+                    hudSoundBtn.textContent = this.sound.muted ? '🔇' : '🔊';
+                }
+            }
+
+            refreshLevelMenuUI() {
+                let totalBestStars = 0;
+                for (let lvl = 1; lvl <= 4; lvl++) {
+                    totalBestStars += Number(this.saveData.bestStars[lvl] || 0);
+                }
+                const summaryEl = document.getElementById('save-summary');
+                if (summaryEl) {
+                    summaryEl.textContent = `Total Best Stars: ★ ${totalBestStars}`;
+                }
+
+                document.querySelectorAll('.level-select-btn').forEach(btn => {
+                    const lvl = parseInt(btn.getAttribute('data-level'), 10);
+                    const bestEl = btn.querySelector('.level-best');
+                    if (bestEl) {
+                        const stars = this.saveData.bestStars[lvl] || 0;
+                        const gems = this.saveData.bestGems[lvl] || 0;
+                        bestEl.textContent = `★ ${stars}  •  💎 ${gems}`;
+                    }
+                });
+            }
+
+            clearLevelEntities() {
+                this.platforms.forEach(p => this.scene.remove(p.mesh));
+                this.collectibles.forEach(c => this.scene.remove(c.mesh));
+                this.hazards.forEach(h => this.scene.remove(h.mesh));
+                this.checkpoints.forEach(cp => this.scene.remove(cp.mesh));
+                this.decorMeshes.forEach(m => this.scene.remove(m));
+                this.particles.forEach(p => this.scene.remove(p));
+                if (this.finishPortal) {
+                    this.scene.remove(this.finishPortal);
+                    this.finishPortal = null;
+                }
+
+                this.platforms = [];
+                this.collectibles = [];
+                this.hazards = [];
+                this.checkpoints = [];
+                this.decorMeshes = [];
+                this.particles = [];
+            }
+
+            loadLevel(index) {
+                this.currentLevelIndex = Math.max(0, Math.min(LEVELS_DATA.length - 1, index));
+                const config = LEVELS_DATA[this.currentLevelIndex];
+
+                this.clearLevelEntities();
+
+                this.scoreGems = 0;
+                this.starsCollected = 0;
+                this.totalLevelStars = 0;
+                this.isGrounded = false;
+                this.groundedPlatform = null;
+                this.jumpCount = 0;
+                this.animState = 'idle';
+                this.flipRotation = 0;
+                this.squashY = 1;
+                this.squashXZ = 1;
+
+                this.scene.background = new THREE.Color(config.bgColor);
+                this.scene.fog = new THREE.FogExp2(config.fogColor, 0.012);
+
+                this.buildLevel(config);
+
+                // Starting platform top is y = 0.0 (center y = -0.5, height = 1.0 -> top = 0.0)
+                this.spawnPos.set(0, 0.02, 0);
+                this.playerPos.copy(this.spawnPos);
+                this.playerVel.set(0, 0, 0);
+                this.player.position.copy(this.playerPos);
+                this.player.rotation.set(0, Math.PI / 2, 0);
+
+                this.camera.position.set(this.playerPos.x + 2.0, this.playerPos.y + 3.8, 11.5);
+
+                document.getElementById('hud-level-title').textContent = config.name;
+                document.getElementById('checkpoint-badge').classList.add('hidden');
+                this.updateHUD();
+            }
+
+            buildLevel(config) {
+                const groundMat = new THREE.MeshLambertMaterial({ color: config.groundColor });
+                const platMat = new THREE.MeshLambertMaterial({ color: config.platformColor });
+                const accentMat = new THREE.MeshLambertMaterial({ color: config.accentColor });
+
+                // Starting Platform (top at y = 0)
+                this.createPlatform(0, -0.5, 0, 12, 1.0, 4.5, groundMat);
+                this.addSceneryProp(0, 0, -1.6, config.id, accentMat);
+
+                let currentX = 6.0;
+                let lastTopY = 0.0;
+                let platformCount = 1;
+                const checkpointInterval = 42;
+                let nextCheckpointX = checkpointInterval;
+
+                while (currentX < config.length) {
+                    const gap = 2.4 + Math.random() * 2.2;
+                    const platW = 5.0 + Math.random() * 4.5;
+                    const platH = 0.9;
+
+                    // Keep vertical steps gentle and reachable with single/double jump
+                    const deltaY = (Math.random() - 0.45) * 2.2;
+                    const desiredTopY = Math.max(-1.5, Math.min(4.2, lastTopY + deltaY));
+                    const centerX = currentX + gap + platW / 2;
+                    const centerY = desiredTopY - platH / 2;
+
+                    const isMoving = platformCount >= 3 && Math.random() > 0.62 && currentX < config.length - 14;
+                    const plat = this.createPlatform(centerX, centerY, 0, platW, platH, 3.6, isMoving ? accentMat : platMat, {
+                        isMoving,
+                        baseX: centerX,
+                        baseY: centerY,
+                        moveAmpY: isMoving ? 1.1 + Math.random() * 0.9 : 0,
+                        moveSpeed: 1.4 + Math.random() * 0.9,
+                        phase: platformCount * 1.1
+                    });
+
+                    platformCount++;
+
+                    // Place Star & Gem collectibles cleanly above platform top
+                    const topSurfaceY = desiredTopY;
+                    const itemCount = 2 + Math.floor(Math.random() * 2);
+                    for (let i = 0; i < itemCount; i++) {
+                        const t = (i + 1) / (itemCount + 1);
+                        const ix = centerX - platW / 2 + t * platW;
+                        const iy = topSurfaceY + 1.15 + (i % 2 === 1 ? 0.5 : 0);
+                        const isStar = i === 0 || Math.random() > 0.55;
+                        this.createCollectible(ix, iy, 0, isStar ? 'star' : 'gem');
+                        if (isStar) this.totalLevelStars++;
+                    }
+
+                    // Place optional hazard away from edges and checkpoints
+                    if (config.hazardType && !isMoving && platW >= 6.0 && Math.random() > 0.58) {
+                        this.createHazard(centerX + 0.8, topSurfaceY, 0, config.hazardType);
+                    }
+
+                    // Place Checkpoint flag periodically
+                    if (centerX >= nextCheckpointX && currentX < config.length - 12) {
+                        this.createCheckpoint(centerX - 1.2, topSurfaceY, 0);
+                        nextCheckpointX += checkpointInterval;
+                    }
+
+                    // Subtle background castle/scenery accents
+                    if (platformCount % 2 === 0) {
+                        this.addSceneryProp(centerX, topSurfaceY, -4.5, config.id, accentMat);
+                    }
+
+                    currentX = centerX + platW / 2;
+                    lastTopY = desiredTopY;
+                }
+
+                // Final Kingdom Finish Platform & Portal
+                const finishX = currentX + 4.5;
+                const finishTopY = Math.max(0, lastTopY);
+                this.createPlatform(finishX, finishTopY - 0.5, 0, 9.0, 1.0, 4.5, groundMat);
+
+                const portalGroup = new THREE.Group();
+                portalGroup.position.set(finishX, finishTopY + 1.85, 0);
+
+                const outerRing = new THREE.Mesh(
+                    new THREE.TorusGeometry(1.55, 0.22, 14, 32),
+                    new THREE.MeshBasicMaterial({ color: 0xfbbf24 })
+                );
+                const innerGlow = new THREE.Mesh(
+                    new THREE.CircleGeometry(1.32, 24),
+                    new THREE.MeshBasicMaterial({ color: 0xf472b6, transparent: true, opacity: 0.45, side: THREE.DoubleSide })
+                );
+                portalGroup.add(outerRing, innerGlow);
+                this.finishPortal = portalGroup;
+                this.scene.add(this.finishPortal);
+            }
+
+            createPlatform(x, y, z, w, h, d, material, moveOpts = {}) {
+                const geo = new THREE.BoxGeometry(w, h, d);
+                const mesh = new THREE.Mesh(geo, material);
+                mesh.position.set(x, y, z);
+                this.scene.add(mesh);
+
+                // Top cap trim for clear landing readability
+                const trimGeo = new THREE.BoxGeometry(w + 0.06, 0.12, d + 0.06);
+                const trimMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+                const trimMesh = new THREE.Mesh(trimGeo, trimMat);
+                trimMesh.position.set(0, h / 2 - 0.04, 0);
+                mesh.add(trimMesh);
+
+                const plat = {
+                    mesh,
+                    x,
+                    y,
+                    z,
+                    w,
+                    h,
+                    d,
+                    prevX: x,
+                    prevY: y,
+                    isMoving: Boolean(moveOpts.isMoving),
+                    baseX: moveOpts.baseX !== undefined ? moveOpts.baseX : x,
+                    baseY: moveOpts.baseY !== undefined ? moveOpts.baseY : y,
+                    moveAmpY: moveOpts.moveAmpY || 0,
+                    moveSpeed: moveOpts.moveSpeed || 1.5,
+                    phase: moveOpts.phase || 0
+                };
+                this.platforms.push(plat);
+                return plat;
+            }
+
+            createCollectible(x, y, z, type) {
+                const isStar = type === 'star';
+                const geo = isStar
+                    ? new THREE.OctahedronGeometry(0.36, 0)
+                    : new THREE.OctahedronGeometry(0.28, 1);
+                const mat = new THREE.MeshBasicMaterial({
+                    color: isStar ? 0xfacc15 : 0x38bdf8
+                });
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.position.set(x, y, z);
+                this.scene.add(mesh);
+                this.collectibles.push({ mesh, x, y, z, baseY: y, type, active: true });
+            }
+
+            createHazard(x, topY, z, type) {
+                const group = new THREE.Group();
+                const spikeMat = new THREE.MeshLambertMaterial({
+                    color: type === 'lava' ? 0xef4444 : 0x38bdf8
+                });
+                for (let i = -1; i <= 1; i++) {
+                    const spike = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.65, 6), spikeMat);
+                    spike.position.set(i * 0.36, 0.325, 0);
+                    group.add(spike);
+                }
+                group.position.set(x, topY, z);
+                this.scene.add(group);
+                this.hazards.push({ mesh: group, x, y: topY + 0.3, z });
+            }
+
+            createCheckpoint(x, topY, z) {
+                const pole = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.06, 0.06, 1.8, 8),
+                    new THREE.MeshLambertMaterial({ color: 0xe2e8f0 })
+                );
+                pole.position.set(0, 0.9, 0);
+
+                const flag = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.65, 0.4, 0.08),
+                    new THREE.MeshLambertMaterial({ color: 0x94a3b8 })
+                );
+                flag.position.set(0.35, 1.55, 0);
+
+                const group = new THREE.Group();
+                group.add(pole, flag);
+                group.position.set(x, topY, z);
+                this.scene.add(group);
+
+                this.checkpoints.push({
+                    mesh: group,
+                    flag,
+                    x,
+                    y: topY + 0.02,
+                    z,
+                    activated: false
+                });
+            }
+
+            addSceneryProp(x, baseY, z, kingdomId, accentMat) {
+                let prop;
+                if (kingdomId === 1) {
+                    // Garden tree / flower tower
+                    const trunk = new THREE.Mesh(
+                        new THREE.CylinderGeometry(0.22, 0.3, 1.4, 8),
+                        new THREE.MeshLambertMaterial({ color: 0x92400e })
+                    );
+                    trunk.position.y = 0.7;
+                    const canopy = new THREE.Mesh(
+                        new THREE.DodecahedronGeometry(1.05, 0),
+                        new THREE.MeshLambertMaterial({ color: 0x16a34a })
+                    );
+                    canopy.position.y = 1.9;
+                    prop = new THREE.Group();
+                    prop.add(trunk, canopy);
+                } else if (kingdomId === 2) {
+                    // Ice crystal spire
+                    prop = new THREE.Mesh(
+                        new THREE.ConeGeometry(0.85, 3.2, 6),
+                        new THREE.MeshLambertMaterial({ color: 0xbae6fd })
+                    );
+                    prop.position.y = 1.6;
+                } else if (kingdomId === 3) {
+                    // Volcanic pillar
+                    prop = new THREE.Mesh(
+                        new THREE.CylinderGeometry(0.6, 1.1, 2.8, 7),
+                        new THREE.MeshLambertMaterial({ color: 0x292524 })
+                    );
+                    prop.position.y = 1.4;
+                } else {
+                    // Enchanted crystal column
+                    prop = new THREE.Mesh(
+                        new THREE.OctahedronGeometry(1.1, 0),
+                        accentMat
+                    );
+                    prop.position.y = 1.8;
+                }
+                prop.position.x = x;
+                prop.position.z = z;
+                prop.position.y += baseY;
+                this.scene.add(prop);
+                this.decorMeshes.push(prop);
+            }
+
+            spawnSparkles(pos, colorHex) {
+                for (let i = 0; i < 10; i++) {
+                    const pMesh = new THREE.Mesh(
+                        new THREE.SphereGeometry(0.08, 6, 6),
+                        new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 1 })
+                    );
+                    pMesh.position.copy(pos);
+                    pMesh.userData = {
+                        vel: new THREE.Vector3(
+                            (Math.random() - 0.5) * 5.5,
+                            1.5 + Math.random() * 4.5,
+                            (Math.random() - 0.5) * 4.0
+                        ),
+                        life: 1.0
+                    };
+                    this.scene.add(pMesh);
+                    this.particles.push(pMesh);
+                }
+            }
+
+            bindEvents() {
+                window.addEventListener('resize', () => {
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+
+                window.addEventListener('keydown', (e) => {
+                    if (e.code === 'KeyA' || e.code === 'ArrowLeft') this.keys.left = true;
+                    if (e.code === 'KeyD' || e.code === 'ArrowRight') this.keys.right = true;
+                    if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
+                        if (!this.keys.jump) {
+                            this.sound.init();
+                            this.handleJump();
+                        }
+                        this.keys.jump = true;
+                    }
+                    if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+                        this.sound.init();
+                        this.triggerFlip();
+                    }
+                    if (e.code === 'Escape' || e.code === 'KeyP') {
+                        this.togglePause();
+                    }
+                });
+
+                window.addEventListener('keyup', (e) => {
+                    if (e.code === 'KeyA' || e.code === 'ArrowLeft') this.keys.left = false;
+                    if (e.code === 'KeyD' || e.code === 'ArrowRight') this.keys.right = false;
+                    if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
+                        this.keys.jump = false;
+                    }
+                });
+
+                const bindTouchOrClick = (id, onDown, onUp) => {
+                    const btn = document.getElementById(id);
+                    if (!btn) return;
+                    const press = (e) => {
+                        e.preventDefault();
+                        this.sound.init();
+                        btn.classList.add('active');
+                        onDown();
+                    };
+                    const release = (e) => {
+                        e.preventDefault();
+                        btn.classList.remove('active');
+                        if (onUp) onUp();
+                    };
+                    btn.addEventListener('touchstart', press, { passive: false });
+                    btn.addEventListener('touchend', release, { passive: false });
+                    btn.addEventListener('touchcancel', release, { passive: false });
+                    btn.addEventListener('mousedown', press);
+                    btn.addEventListener('mouseup', release);
+                    btn.addEventListener('mouseleave', release);
+                };
+
+                bindTouchOrClick('btn-left', () => { this.keys.left = true; }, () => { this.keys.left = false; });
+                bindTouchOrClick('btn-right', () => { this.keys.right = true; }, () => { this.keys.right = false; });
+                bindTouchOrClick('btn-jump', () => {
+                    if (!this.keys.jump) this.handleJump();
+                    this.keys.jump = true;
+                }, () => { this.keys.jump = false; });
+                bindTouchOrClick('btn-flip', () => { this.triggerFlip(); });
+
+                document.getElementById('btn-play-start').onclick = () => {
+                    this.sound.init();
+                    this.startGame(0);
+                };
+
+                document.querySelectorAll('.level-select-btn').forEach(btn => {
+                    btn.onclick = () => {
+                        this.sound.init();
+                        const lvlIdx = (parseInt(btn.getAttribute('data-level'), 10) || 1) - 1;
+                        this.startGame(lvlIdx);
+                    };
+                });
+
+                document.getElementById('btn-quality').onclick = () => {
+                    this.saveData.settings.highQuality = !this.saveData.settings.highQuality;
+                    persistSaveData(this.saveData);
+                    this.applyQualitySetting();
+                    this.syncSettingsUI();
+                };
+
+                const handleSoundToggle = () => {
+                    this.sound.init();
+                    const muted = this.sound.toggleMute();
+                    this.saveData.settings.muted = muted;
+                    persistSaveData(this.saveData);
+                    this.syncSettingsUI();
+                };
+                document.getElementById('sound-btn').onclick = handleSoundToggle;
+                document.getElementById('btn-menu-sound').onclick = handleSoundToggle;
+
+                document.getElementById('pause-btn').onclick = () => this.togglePause();
+                document.getElementById('btn-resume').onclick = () => this.togglePause();
+                document.getElementById('btn-restart').onclick = () => {
+                    this.togglePause();
+                    this.loadLevel(this.currentLevelIndex);
+                };
+                document.getElementById('btn-main-menu').onclick = () => {
+                    this.togglePause();
+                    this.showMainMenu();
+                };
+
+                document.getElementById('btn-next-level').onclick = () => {
+                    document.getElementById('complete-overlay').classList.add('hidden');
+                    const nextIdx = (this.currentLevelIndex + 1) % LEVELS_DATA.length;
+                    this.loadLevel(nextIdx);
+                    this.isPlaying = true;
+                };
+
+                document.getElementById('btn-replay').onclick = () => {
+                    document.getElementById('complete-overlay').classList.add('hidden');
+                    this.loadLevel(this.currentLevelIndex);
+                    this.isPlaying = true;
+                };
+            }
+
+            handleJump() {
+                if (!this.isPlaying || this.isPaused) return;
+                if (this.isGrounded) {
+                    this.playerVel.y = 11.8;
+                    this.isGrounded = false;
+                    this.groundedPlatform = null;
+                    this.jumpCount = 1;
+                    this.animState = 'jump';
+                    this.squashY = 1.22;
+                    this.squashXZ = 0.84;
+                    this.sound.playJump();
+                } else if (this.jumpCount < this.maxJumps) {
+                    this.playerVel.y = 10.8;
+                    this.jumpCount = 2;
+                    this.animState = 'flip';
+                    this.flipRotation = 0;
+                    this.squashY = 1.18;
+                    this.squashXZ = 0.86;
+                    this.sound.playDoubleJump();
+                }
+            }
+
+            triggerFlip() {
+                if (!this.isPlaying || this.isPaused) return;
+                this.animState = 'flip';
+                this.flipRotation = 0;
+                if (this.isGrounded) {
+                    this.playerVel.y = 9.5;
+                    this.isGrounded = false;
+                    this.groundedPlatform = null;
+                    this.jumpCount = Math.max(this.jumpCount, 1);
+                }
+                this.sound.playDoubleJump();
+            }
+
+            startGame(levelIndex) {
+                this.loadLevel(levelIndex);
+                document.getElementById('menu-overlay').classList.add('hidden');
+                document.getElementById('hud-bar').classList.remove('hidden');
+                document.getElementById('touch-controls').classList.remove('hidden');
+                this.isPlaying = true;
+                this.isPaused = false;
+            }
+
+            showMainMenu() {
+                this.isPlaying = false;
+                this.isPaused = false;
+                this.refreshLevelMenuUI();
+                document.getElementById('menu-overlay').classList.remove('hidden');
+                document.getElementById('hud-bar').classList.add('hidden');
+                document.getElementById('touch-controls').classList.add('hidden');
+                document.getElementById('pause-overlay').classList.add('hidden');
+                document.getElementById('complete-overlay').classList.add('hidden');
+            }
+
+            togglePause() {
+                if (!this.isPlaying) return;
+                this.isPaused = !this.isPaused;
+                const pauseEl = document.getElementById('pause-overlay');
+                if (this.isPaused) {
+                    pauseEl.classList.remove('hidden');
+                } else {
+                    pauseEl.classList.add('hidden');
+                }
+            }
+
+            respawnAtCheckpoint() {
+                this.sound.playHurt();
+                this.spawnSparkles(new THREE.Vector3(this.playerPos.x, this.playerPos.y + 0.6, 0), 0xf43f5e);
+                this.playerPos.copy(this.spawnPos);
+                this.playerVel.set(0, 0, 0);
+                this.isGrounded = false;
+                this.groundedPlatform = null;
+                this.jumpCount = 0;
+                this.animState = 'idle';
+                this.flipRotation = 0;
+            }
+
+            updateHUD() {
+                document.getElementById('star-count').textContent = `${this.starsCollected} / ${this.totalLevelStars}`;
+                document.getElementById('gem-count').textContent = `${this.scoreGems}`;
+            }
+
+            updatePhysics(delta, elapsedTime) {
+                if (!this.isPlaying || this.isPaused) return;
+
+                // 1. Update Moving Platforms & record delta
+                for (let i = 0; i < this.platforms.length; i++) {
+                    const plat = this.platforms[i];
+                    plat.prevX = plat.x;
+                    plat.prevY = plat.y;
+                    if (plat.isMoving) {
+                        plat.y = plat.baseY + Math.sin(elapsedTime * plat.moveSpeed + plat.phase) * plat.moveAmpY;
+                        plat.mesh.position.y = plat.y;
+                    }
+                }
+
+                // 2. Carry player with moving platform if currently standing on one
+                let prevY = this.playerPos.y;
+                if (this.isGrounded && this.groundedPlatform && this.groundedPlatform.isMoving) {
+                    const dy = this.groundedPlatform.y - this.groundedPlatform.prevY;
+                    this.playerPos.y += dy;
+                    prevY = this.playerPos.y;
+                }
+
+                // 3. Horizontal Movement & Facing Direction
+                const moveSpeed = 8.4;
+                const targetDir = (this.keys.right ? 1 : 0) - (this.keys.left ? 1 : 0);
+                if (targetDir !== 0) {
+                    this.playerVel.x = targetDir * moveSpeed;
+                    const desiredYaw = targetDir > 0 ? Math.PI / 2 : -Math.PI / 2;
+                    this.player.rotation.y = desiredYaw;
+                } else {
+                    this.playerVel.x *= Math.pow(0.002, delta);
+                    if (Math.abs(this.playerVel.x) < 0.08) this.playerVel.x = 0;
+                }
+
+                // 4. Gravity & Step Integration
+                this.playerVel.y -= 26.5 * delta;
+                if (this.playerVel.y < -28) this.playerVel.y = -28;
+
+                const prevX = this.playerPos.x;
+                const nextX = prevX + this.playerVel.x * delta;
+                const nextY = prevY + this.playerVel.y * delta;
+
+                // 5. Swept Vertical Platform Collision (prevents tunneling on any platform)
+                const wasGrounded = this.isGrounded;
+                this.isGrounded = false;
+                let landedPlatform = null;
+                let resolvedY = nextY;
+                const halfFootWidth = 0.36;
+
+                for (let i = 0; i < this.platforms.length; i++) {
+                    const plat = this.platforms[i];
+                    const prevTop = plat.prevY + plat.h * 0.5;
+                    const currTop = plat.y + plat.h * 0.5;
+                    const leftBound = plat.x - plat.w * 0.5 - halfFootWidth;
+                    const rightBound = plat.x + plat.w * 0.5 + halfFootWidth;
+
+                    const overlapsX = (nextX >= leftBound && nextX <= rightBound) || (prevX >= leftBound && prevX <= rightBound);
+                    if (!overlapsX) continue;
+
+                    // Player crossed or touched top surface while descending or riding moving platform
+                    const crossedTop = prevY >= prevTop - 0.16 && nextY <= currTop + 0.08;
+                    const ridingTop = wasGrounded && this.groundedPlatform === plat && Math.abs(nextY - currTop) <= 0.25 && this.playerVel.y <= 1.0;
+
+                    if ((crossedTop || ridingTop) && this.playerVel.y <= 0.5) {
+                        resolvedY = currTop;
+                        this.playerVel.y = 0;
+                        this.isGrounded = true;
+                        landedPlatform = plat;
+                        this.jumpCount = 0;
+
+                        if (!wasGrounded) {
+                            this.squashY = 0.78;
+                            this.squashXZ = 1.22;
+                            this.sound.playLand();
+                        }
+
+                        if (this.animState !== 'flip') {
+                            this.animState = Math.abs(this.playerVel.x) > 0.4 ? 'run' : 'idle';
+                        }
+                        break;
+                    }
+                }
+
+                this.groundedPlatform = landedPlatform;
+                this.playerPos.x = nextX;
+                this.playerPos.y = resolvedY;
+
+                if (!this.isGrounded && this.animState !== 'flip') {
+                    this.animState = 'jump';
+                }
+
+                // 6. Checkpoints
+                for (let i = 0; i < this.checkpoints.length; i++) {
+                    const cp = this.checkpoints[i];
+                    if (!cp.activated) {
+                        const d = Math.hypot(this.playerPos.x - cp.x, (this.playerPos.y + 0.6) - (cp.y + 0.6));
+                        if (d < 1.15) {
+                            cp.activated = true;
+                            cp.flag.material.color.setHex(0x10b981);
+                            this.spawnPos.set(cp.x, cp.y + 0.02, 0);
+                            this.sound.playCheckpoint();
+                            this.spawnSparkles(new THREE.Vector3(cp.x, cp.y + 1.4, 0), 0x10b981);
+                            document.getElementById('checkpoint-badge').classList.remove('hidden');
+                        }
+                    }
+                }
+
+                // 7. Hazards
+                for (let i = 0; i < this.hazards.length; i++) {
+                    const h = this.hazards[i];
+                    const dx = Math.abs(this.playerPos.x - h.x);
+                    const dy = Math.abs((this.playerPos.y + 0.45) - h.y);
+                    if (dx < 0.72 && dy < 0.55) {
+                        this.respawnAtCheckpoint();
+                        break;
+                    }
+                }
+
+                // 8. Collectibles
+                for (let i = 0; i < this.collectibles.length; i++) {
+                    const c = this.collectibles[i];
+                    if (!c.active) continue;
+                    c.mesh.rotation.y += delta * 3.2;
+                    c.mesh.position.y = c.baseY + Math.sin(elapsedTime * 3.5 + i) * 0.12;
+
+                    const dist = Math.hypot(this.playerPos.x - c.x, (this.playerPos.y + 0.75) - c.mesh.position.y);
+                    if (dist < 0.92) {
+                        c.active = false;
+                        c.mesh.visible = false;
+                        this.sound.playCollect();
+                        this.spawnSparkles(c.mesh.position, c.type === 'star' ? 0xfacc15 : 0x38bdf8);
+                        if (c.type === 'star') {
+                            this.starsCollected++;
+                        } else {
+                            this.scoreGems += 10;
+                        }
+                        this.updateHUD();
+                    }
+                }
+
+                // 9. Pit Fall Respawn
+                if (this.playerPos.y < this.deathY) {
+                    this.respawnAtCheckpoint();
+                }
+
+                // 10. Level Finish Portal
+                if (this.finishPortal) {
+                    this.finishPortal.children[0].rotation.z += delta * 1.8;
+                    const distToPortal = Math.hypot(
+                        this.playerPos.x - this.finishPortal.position.x,
+                        (this.playerPos.y + 0.8) - this.finishPortal.position.y
+                    );
+                    if (distToPortal < 1.55) {
+                        this.completeLevel();
+                    }
+                }
+
+                // 11. Particles
+                for (let i = this.particles.length - 1; i >= 0; i--) {
+                    const p = this.particles[i];
+                    p.userData.vel.y -= 12 * delta;
+                    p.position.addScaledVector(p.userData.vel, delta);
+                    p.userData.life -= delta * 2.2;
+                    p.material.opacity = Math.max(0, p.userData.life);
+                    if (p.userData.life <= 0) {
+                        this.scene.remove(p);
+                        this.particles.splice(i, 1);
+                    }
+                }
+
+                // 12. Apply Transform & Smooth Side-Follow Camera
+                this.player.position.copy(this.playerPos);
+
+                const lookAheadX = Math.max(-1.5, Math.min(3.0, this.playerVel.x * 0.25)) + 1.5;
+                const camTargetX = this.playerPos.x + lookAheadX;
+                const camTargetY = Math.max(2.2, this.playerPos.y + 3.4);
+
+                this.camera.position.x += (camTargetX - this.camera.position.x) * Math.min(1, delta * 8);
+                this.camera.position.y += (camTargetY - this.camera.position.y) * Math.min(1, delta * 6.5);
+                this.camera.lookAt(this.camera.position.x, this.camera.position.y - 1.1, 0);
+            }
+
+            completeLevel() {
+                this.isPlaying = false;
+                this.sound.playWin();
+
+                const lvlNum = this.currentLevelIndex + 1;
+                const prevStars = this.saveData.bestStars[lvlNum] || 0;
+                const prevGems = this.saveData.bestGems[lvlNum] || 0;
+
+                if (this.starsCollected > prevStars) {
+                    this.saveData.bestStars[lvlNum] = this.starsCollected;
+                }
+                if (this.scoreGems > prevGems) {
+                    this.saveData.bestGems[lvlNum] = this.scoreGems;
+                }
+                if (lvlNum < LEVELS_DATA.length && this.saveData.unlockedLevel < lvlNum + 1) {
+                    this.saveData.unlockedLevel = lvlNum + 1;
+                }
+                persistSaveData(this.saveData);
+
+                document.getElementById('complete-subtitle').textContent = `${LEVELS_DATA[this.currentLevelIndex].name} Cleared!`;
+                document.getElementById('complete-stars').textContent = `${this.starsCollected} / ${this.totalLevelStars}`;
+                document.getElementById('complete-gems').textContent = `${this.scoreGems}`;
+                document.getElementById('complete-overlay').classList.remove('hidden');
+            }
+
+            updateProceduralAnimations(delta) {
+                if (!this.player || this.isPaused) return;
+                this.animTime += delta * 11;
+                const rig = this.player.userData;
+
+                // Relax squash & stretch smoothly back to (1, 1, 1)
+                this.squashY += (1 - this.squashY) * Math.min(1, delta * 14);
+                this.squashXZ += (1 - this.squashXZ) * Math.min(1, delta * 14);
+                rig.bodyPivot.scale.set(this.squashXZ, this.squashY, this.squashXZ);
+
+                // Gymnastics flip rotation
+                if (this.animState === 'flip') {
+                    this.flipRotation += delta * 15;
+                    rig.bodyPivot.rotation.x = this.flipRotation;
+                    rig.bodyPivot.position.y = 0.72;
+                    if (this.flipRotation >= Math.PI * 2) {
+                        rig.bodyPivot.rotation.x = 0;
+                        rig.bodyPivot.position.y = 0;
+                        this.flipRotation = 0;
+                        this.animState = this.isGrounded
+                            ? (Math.abs(this.playerVel.x) > 0.4 ? 'run' : 'idle')
+                            : 'jump';
+                    }
+                } else {
+                    rig.bodyPivot.rotation.x = 0;
+                    rig.bodyPivot.position.y = 0;
+                }
+
+                if (this.animState === 'run') {
+                    const s = Math.sin(this.animTime);
+                    rig.leftLeg.rotation.x = s * 0.85;
+                    rig.rightLeg.rotation.x = -s * 0.85;
+                    rig.leftArm.rotation.x = -s * 0.75;
+                    rig.rightArm.rotation.x = s * 0.75;
+                    rig.leftArm.rotation.z = 0.15;
+                    rig.rightArm.rotation.z = -0.15;
+                    rig.puffLeft.position.y = 0.22 + Math.abs(Math.cos(this.animTime)) * 0.04;
+                    rig.puffRight.position.y = 0.22 + Math.abs(Math.cos(this.animTime)) * 0.04;
+                    rig.skirt.rotation.z = Math.sin(this.animTime * 2) * 0.06;
+                } else if (this.animState === 'jump' || this.animState === 'flip') {
+                    rig.leftLeg.rotation.x = -0.5;
+                    rig.rightLeg.rotation.x = 0.45;
+                    rig.leftArm.rotation.x = 0;
+                    rig.rightArm.rotation.x = 0;
+                    rig.leftArm.rotation.z = 1.15;
+                    rig.rightArm.rotation.z = -1.15;
+                } else {
+                    // Idle animation
+                    const idleWave = Math.sin(this.animTime * 0.45);
+                    rig.leftLeg.rotation.x = 0;
+                    rig.rightLeg.rotation.x = 0;
+                    rig.leftArm.rotation.x = 0;
+                    rig.rightArm.rotation.x = 0;
+                    rig.leftArm.rotation.z = 0.12 + idleWave * 0.04;
+                    rig.rightArm.rotation.z = -0.12 - idleWave * 0.04;
+                    rig.head.position.y = 1.36 + idleWave * 0.02;
+                    rig.skirt.rotation.z = 0;
+                }
+            }
+
+            animate() {
+                requestAnimationFrame(this.animate);
+                const delta = Math.min(this.clock.getDelta(), 0.05);
+                const elapsed = this.clock.elapsedTime;
+
+                this.updatePhysics(delta, elapsed);
+                this.updateProceduralAnimations(delta);
+
+                this.renderer.render(this.scene, this.camera);
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            window.game = new GameEngine();
+        });
+    </script>
+</body>
+</html>
